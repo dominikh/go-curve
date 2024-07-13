@@ -11,22 +11,21 @@ import (
 type PathElementKind int
 
 const (
-	/// Move directly to the point without drawing anything, starting a new
-	/// subpath.
+	// Move directly to the point without drawing anything, starting a new
+	// subpath.
 	MoveToKind PathElementKind = iota + 1
-	/// Draw a line from the current location to the point.
+	// Draw a line from the current location to the point.
 	LineToKind
-	/// Draw a quadratic bezier using the current location and the two points.
+	// Draw a quadratic bezier using the current location and the two points.
 	QuadToKind
-	/// Draw a cubic bezier using the current location and the three points.
+	// Draw a cubic bezier using the current location and the three points.
 	CubicToKind
-	/// Close off the path.
+	// Close off the path.
 	ClosePathKind
 )
 
-// / The element of a Bézier path.
-// /
-// / A valid path has `MoveTo` at the beginning of each subpath.
+// PathElement describes an element of a Bézier path. Different kinds of path
+// elements use different numbers of points.
 type PathElement struct {
 	Kind PathElementKind
 	P0   Point
@@ -354,7 +353,7 @@ func (seg PathSegment) Reverse() PathSegment {
 	}
 }
 
-// / Assumes split at extrema.
+// Assumes split at extrema.
 func (seg PathSegment) windingInner(pt Point) int {
 	start := seg.Eval(0)
 	end := seg.Eval(1)
@@ -444,9 +443,9 @@ func (seg PathSegment) windingInner(pt Point) int {
 	}
 }
 
-// / Compute the winding number contribution of a single segment.
-// /
-// / Cast a ray to the left and count intersections.
+// Winding computes the winding number contribution of a single segment.
+//
+// It casts a ray to the left and counts intersections.
 func (seg PathSegment) Winding(pt Point) int {
 	exs, n := ExtremaRanges(seg)
 	var w int
@@ -456,18 +455,18 @@ func (seg PathSegment) Winding(pt Point) int {
 	return w
 }
 
-// / An intersection of a [`Line`] and a [`PathSeg`].
-// /
-// / This can be generated with the [`PathSeg::intersect_line`] method.
+// LineIntersection describes the intersection of a [Line] and a [PathSegment].
+//
+// This can be generated with [PathSegment.IntersectLine].
 type LineIntersection struct {
-	/// The 'time' that the intersection occurs, on the line.
-	///
-	/// This value is in the range 0..1.
+	// The "time" that the intersection occurs, on the line.
+	//
+	// This value is in the range [0, 1].
 	LineT float64
-	/// The 'time' that the intersection occurs, on the path segment.
-	///
-	/// This value is nominally in the range 0..1, although it may slightly exceed
-	/// that range at the boundaries of segments.
+	// The "time" that the intersection occurs, on the path segment.
+	//
+	// This value is nominally in the range [0, 1], although it may slightly exceed
+	// that range at the boundaries of segments.
 	SegmentT float64
 }
 
@@ -479,32 +478,16 @@ func (li LineIntersection) IsNaN() bool {
 	return math.IsNaN(li.LineT) || math.IsNaN(li.SegmentT)
 }
 
-// / Compute intersections against a line.
-// /
-// / Returns a vector of the intersections. For each intersection,
-// / the `t` value of the segment and line are given.
-// /
-// / Note: This test is designed to be inclusive of points near the endpoints
-// / of the segment. This is so that testing a line against multiple
-// / contiguous segments of a path will be guaranteed to catch at least one
-// / of them. In such cases, use higher level logic to coalesce the hits
-// / (the `t` value may be slightly outside the range of 0..1).
-// /
-// / # Examples
-// /
-// / ```
-// / # use kurbo::*;
-// / let seg = PathSeg::Line(Line::new((0.0, 0.0), (2.0, 0.0)));
-// / let line = Line::new((1.0, 2.0), (1.0, -2.0));
-// / let intersection = seg.intersect_line(line);
-// / assert_eq!(intersection.len(), 1);
-// / let intersection = intersection[0];
-// / assert_eq!(intersection.segment_t, 0.5);
-// / assert_eq!(intersection.line_t, 0.5);
-// /
-// / let point = seg.eval(intersection.segment_t);
-// / assert_eq!(point, Point::new(1.0, 0.0));
-// / ```
+// IntersectLine computes intersections against a line.
+//
+// It returns up to three intersections and the number of intersections. For
+// each intersection, the t value of the segment and line are given.
+//
+// Note: This test is designed to be inclusive of points near the endpoints
+// of the segment. This is so that testing a line against multiple
+// contiguous segments of a path will be guaranteed to catch at least one
+// of them. In such cases, use higher level logic to coalesce the hits
+// (the t value may be slightly outside the range of [0, 1]).
 func (seg PathSegment) IntersectLine(line Line) ([3]LineIntersection, int) {
 	switch seg.Kind {
 	case LineKind:
@@ -574,9 +557,9 @@ func (seg PathSegment) MinDist(other PathSegment, accuracy float64) MinDistance 
 	}
 }
 
-// / Compute endpoint tangents of a path segment.
-// /
-// / This version is robust to the path segment not being a regular curve.
+// Tangents returns the endpoint tangents of a path segment.
+//
+// This version is robust to the path segment not being a regular curve.
 func (seg PathSegment) Tangents() (Vec2, Vec2) {
 	switch seg.Kind {
 	case LineKind:
@@ -590,80 +573,31 @@ func (seg PathSegment) Tangents() (Vec2, Vec2) {
 	}
 }
 
-// / A Bézier path.
-// /
-// / These docs assume basic familiarity with Bézier curves; for an introduction,
-// / see Pomax's wonderful [A Primer on Bézier Curves].
-// /
-// / This path can contain lines, quadratics ([`QuadBez`]) and cubics
-// / ([`CubicBez`]), and may contain multiple subpaths.
-// /
-// / # Elements and Segments
-// /
-// / A Bézier path can be represented in terms of either 'elements' ([`PathEl`])
-// / or 'segments' ([`PathSeg`]). Elements map closely to how Béziers are
-// / generally used in PostScript-style drawing APIs; they can be thought of as
-// / instructions for drawing the path. Segments more directly describe the
-// / path itself, with each segment being an independent line or curve.
-// /
-// / These different representations are useful in different contexts.
-// / For tasks like drawing, elements are a natural fit, but when doing
-// / hit-testing or subdividing, we need to have access to the segments.
-// /
-// / Conceptually, a `BezPath` contains zero or more subpaths. Each subpath
-// / *always* begins with a `MoveTo`, then has zero or more `LineTo`, `QuadTo`,
-// / and `CurveTo` elements, and optionally ends with a `ClosePath`.
-// /
-// / ```
-// / use kurbo::{BezPath, Rect, Shape, Vec2};
-// / let accuracy = 0.1;
-// / let rect = Rect::from_origin_size((0., 0.,), (10., 10.));
-// / // these are equivalent
-// / let path1 = rect.to_path(accuracy);
-// / let path2: BezPath = rect.path_elements(accuracy).collect();
-// /
-// / // extend a path with another path:
-// / let mut path = rect.to_path(accuracy);
-// / let shifted_rect = rect + Vec2::new(5.0, 10.0);
-// / path.extend(shifted_rect.to_path(accuracy));
-// / ```
-// /
-// / You can iterate the elements of a `BezPath` with the [`iter`] method,
-// / and the segments with the [`segments`] method:
-// /
-// / ```
-// / use kurbo::{BezPath, Line, PathEl, PathSeg, Point, Rect, Shape};
-// / let accuracy = 0.1;
-// / let rect = Rect::from_origin_size((0., 0.,), (10., 10.));
-// / // these are equivalent
-// / let path = rect.to_path(accuracy);
-// / let first_el = PathEl::MoveTo(Point::ZERO);
-// / let first_seg = PathSeg::Line(Line::new((0., 0.), (10., 0.)));
-// / assert_eq!(path.iter().next(), Some(first_el));
-// / assert_eq!(path.segments().next(), Some(first_seg));
-// / ```
-// / In addition, if you have some other type that implements
-// / `Iterator<Item=PathEl>`, you can adapt that to an iterator of segments with
-// / the [`segments` free function].
-// /
-// / # Advanced functionality
-// /
-// / In addition to the basic API, there are several useful pieces of advanced
-// / functionality available on `BezPath`:
-// /
-// / - [`flatten`] does Bézier flattening, converting a curve to a series of
-// /   line segments
-// / - [`intersect_line`] computes intersections of a path with a line, useful
-// /   for things like subdividing
-// /
-// / [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
-// / [`iter`]: BezPath::iter
-// / [`segments`]: BezPath::segments
-// / [`flatten`]: BezPath::flatten
-// / [`intersect_line`]: PathSeg::intersect_line
-// / [`segments` free function]: segments
-// / [`FromIterator<PathEl>`]: std::iter::FromIterator
-// / [`Extend<PathEl>`]: std::iter::Extend
+// BezPath describes a Bézier path.
+//
+// These docs assume basic familiarity with Bézier curves; for an introduction,
+// see Pomax's wonderful [A Primer on Bézier Curves].
+//
+// This path can contain lines, quadratics ([QuadBez]) and cubics
+// ([CubicBez]), and may contain multiple subpaths.
+//
+// # Elements and Segments
+//
+// A Bézier path can be represented in terms of either elements ([PathElement])
+// or segments ([PathSegment]). Elements map closely to how Béziers are
+// generally used in PostScript-style drawing APIs; they can be thought of as
+// instructions for drawing the path. Segments more directly describe the
+// path itself, with each segment being an independent line or curve.
+//
+// These different representations are useful in different contexts.
+// For tasks like drawing, elements are a natural fit, but when doing
+// hit-testing or subdividing, we need to have access to the segments.
+//
+// Conceptually, a BezPath contains zero or more subpaths. Each subpath
+// always begins with a MoveTo, then has zero or more LineTo, QuadTo,
+// and CurveTo elements, and optionally ends with a ClosePath.
+//
+// [A Primer on Bézier Curves]: https://pomax.github.io/bezierinfo/
 type BezPath []PathElement
 
 var _ Shape = BezPath{}
@@ -698,40 +632,28 @@ func (p *BezPath) Push(el PathElement) {
 	*p = append(*p, el)
 }
 
-// Push pushes a "move to" element onto the path.
+// MoveTo adds a "move to" element to the path.
 func (p *BezPath) MoveTo(pt Point) { p.Push(MoveTo(pt)) }
 
-// / Push a "line to" element onto the path.
-// /
-// / Will panic with a debug assert when the path is empty and there is no
-// / "move to" element on the path.
-// /
-// / If `line_to` is called immediately after `close_path` then the current
-// / subpath starts at the initial point of the previous subpath.
+// LineTo adds a "line to" element to the path.
+//
+// If called immediately after [BezPath.ClosePath] then the current
+// subpath starts at the initial point of the previous subpath.
 func (p *BezPath) LineTo(pt Point) { p.Push(LineTo(pt)) }
 
-// / Push a "quad to" element onto the path.
-// /
-// / Will panic with a debug assert when the path is empty and there is no
-// / "move to" element on the path.
-// /
-// / If `quad_to` is called immediately after `close_path` then the current
-// / subpath starts at the initial point of the previous subpath.
+// QuadTo adds a "quad to" element to the path.
+//
+// If called immediately after [BezPath.ClosePath] then the current
+// subpath starts at the initial point of the previous subpath.
 func (p *BezPath) QuadTo(p1, p2 Point) { p.Push(QuadTo(p1, p2)) }
 
-// / Push a "curve to" element onto the path.
-// /
-// / Will panic with a debug assert when the path is empty and there is no
-// / "move to" element on the path.
-// /
-// / If `curve_to` is called immediately after `close_path` then the current
-// / subpath starts at the initial point of the previous subpath.
+// Push a "curve to" element onto the path.
+//
+// If called immediately after [BezPath.ClosePath] then the current
+// subpath starts at the initial point of the previous subpath.
 func (p *BezPath) CubicTo(p1, p2, p3 Point) { p.Push(CubicTo(p1, p2, p3)) }
 
-// / Push a "close path" element onto the path.
-// /
-// / Will panic with a debug assert when the path is empty and there is no
-// / "move to" element on the path.
+// Push a "close path" element onto the path.
 func (p *BezPath) ClosePath() { p.Push(ClosePath()) }
 
 // Segments returns an iterator over the path's segments.
@@ -754,7 +676,6 @@ func (p BezPath) Flatten(tolerance float64) iter.Seq[PathElement] {
 	return Flatten(p.PathElements(0), tolerance)
 }
 
-// / Signed area.
 func (p BezPath) SignedArea() float64 {
 	return SegmentsSignedArea(p.Segments())
 }
@@ -767,7 +688,6 @@ func (p BezPath) Arclen(accuracy float64) float64 {
 	return SegmentsPerimeter(p.Segments(), accuracy)
 }
 
-// / Winding number of point.
 func (p BezPath) Winding(pt Point) int {
 	return SegmentsWinding(p.Segments(), pt)
 }
@@ -897,10 +817,10 @@ func (p BezPath) ControlBox() Rect {
 	return cbox
 }
 
-// / Convert the path to an SVG path string representation.
-// /
-// / The current implementation doesn't take any special care to produce a
-// / short string (reducing precision, using relative movement).
+// SVG converts the path to an SVG path string representation.
+//
+// The current implementation doesn't take any special care to produce a
+// short string (reducing precision, using relative movement).
 func (p BezPath) SVG(opts SVGOptions) string {
 	return SVG(p.Elements(), opts)
 }
@@ -909,7 +829,8 @@ func (p BezPath) WriteSVG(w io.Writer, opts SVGOptions) error {
 	return WriteSVG(w, p.Elements(), opts)
 }
 
-// / Returns a new path with the winding direction of all subpaths reversed.
+// ReverseSubpaths returns a new path with the winding direction of all subpaths
+// reversed.
 func (p BezPath) ReverseSubpaths() BezPath {
 	elements := p
 	startIdx := 1
@@ -967,9 +888,9 @@ func (el PathElement) EndPoint() (Point, bool) {
 	}
 }
 
-// / Helper for reversing a subpath.
-// /
-// / The `els` parameter must not contain any `MoveTo` or `ClosePath` elements.
+// Helper for reversing a subpath.
+//
+// The els parameter must not contain any MoveTo or ClosePath elements.
 func reverseSubpath(startPt Point, els []PathElement, reversed *BezPath) {
 	var endPt Point
 	if len(els) > 0 {
@@ -1022,7 +943,7 @@ func reverseSubpath(startPt Point, els []PathElement, reversed *BezPath) {
 // [Hausdorff distance]: https://en.wikipedia.org/wiki/Hausdorff_distance
 func Flatten(seq iter.Seq[PathElement], tolerance float64) iter.Seq[PathElement] {
 	return func(yield func(PathElement) bool) {
-		// / Proportion of tolerance budget that goes to cubic to quadratic conversion.
+		// Proportion of tolerance budget that goes to cubic to quadratic conversion.
 		const toQuadTol = 0.1
 
 		sqrtTol := math.Sqrt(tolerance)

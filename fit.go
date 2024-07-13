@@ -6,16 +6,15 @@ import (
 	"math"
 )
 
-// / As described in [Simplifying Bézier paths], strictly optimizing for
-// / Fréchet distance can create bumps. The problem is curves with long
-// / control arms (distance from the control point to the corresponding
-// / endpoint). We mitigate that by applying a penalty as a multiplier to
-// / the measured error (approximate Fréchet distance). This is ReLU-like,
-// / with a value of 1.0 below the elbow, and a given slope above it. The
-// / values here have been determined empirically to give good results.
-// /
-// / [Simplifying Bézier paths]:
-// / https://raphlinus.github.io/curves/2023/04/18/bezpath-simplify.html
+// As described in [Simplifying Bézier paths], strictly optimizing for
+// Fréchet distance can create bumps. The problem is curves with long
+// control arms (distance from the control point to the corresponding
+// endpoint). We mitigate that by applying a penalty as a multiplier to
+// the measured error (approximate Fréchet distance). This is ReLU-like,
+// with a value of 1.0 below the elbow, and a given slope above it. The
+// values here have been determined empirically to give good results.
+//
+// [Simplifying Bézier paths]: https://raphlinus.github.io/curves/2023/04/18/bezpath-simplify.html
 const (
 	dPenaltyElbow = 0.65
 	dPenaltySlope = 2.0
@@ -48,54 +47,54 @@ const numSamples = 20
 // efficient and also handles cusps more robustly. Also, there is no method for
 // subsegmenting, as that is not needed and would be annoying to implement.
 type FittableCurve interface {
-	/// Evaluate the curve and its tangent at parameter `t`.
-	///
-	/// For a regular curve (one not containing a cusp or corner), the
-	/// derivative is a good choice for the tangent vector and the `sign`
-	/// parameter can be ignored. Otherwise, the `sign` parameter selects which
-	/// side of the discontinuity the tangent will be sampled from.
-	///
-	/// Generally `t` is in the range [0..1].
+	// SamplePtTangent evaluates the curve and its tangent at parameter t.
+	//
+	// For a regular curve (one not containing a cusp or corner), the
+	// derivative is a good choice for the tangent vector and the sign
+	// parameter can be ignored. Otherwise, the sign parameter selects which
+	// side of the discontinuity the tangent will be sampled from.
+	//
+	// Generally, t is in the range [0, 1].
 	SamplePtTangent(t float64, sign float64) CurveFitSample
-	/// Evaluate the point and derivative at parameter `t`.
-	///
-	/// In curves with cusps, the derivative can go to zero.
+	// SamplePtDeriv evaluates the point and derivative at parameter t.
+	//
+	// In curves with cusps, the derivative can go to zero.
 	SamplePtDeriv(t float64) (Point, Vec2)
-	/// Find a cusp or corner within the given range.
-	///
-	/// If the range contains a corner or cusp, return it. If there is more
-	/// than one such discontinuity, any can be reported, as the function will
-	/// be called repeatedly after subdivision of the range.
-	///
-	/// Do not report cusps at the endpoints of the range, as this may cause
-	/// potentially infinite subdivision. In particular, when a cusp is reported
-	/// and this method is called on a subdivided range bounded by the reported
-	/// cusp, then the subsequent call should not report a cusp there.
-	///
-	/// The definition of what exactly constitutes a cusp is somewhat loose.
-	/// If a cusp is missed, then the curve fitting algorithm will attempt to
-	/// fit the curve with a smooth curve, which is generally not a disaster
-	/// will usually result in more subdivision. Conversely, it might be useful
-	/// to report near-cusps, specifically points of curvature maxima where the
-	/// curvature is large but still mathematically finite.
+	// BreakCusp findf a cusp or corner within the given range.
+	//
+	// If the range contains a corner or cusp, return it. If there is more
+	// than one such discontinuity, any can be reported, as the function will
+	// be called repeatedly after subdivision of the range.
+	//
+	// Do not report cusps at the endpoints of the range, as this may cause
+	// potentially infinite subdivision. In particular, when a cusp is reported
+	// and this method is called on a subdivided range bounded by the reported
+	// cusp, then the subsequent call should not report a cusp there.
+	//
+	// The definition of what exactly constitutes a cusp is somewhat loose.
+	// If a cusp is missed, then the curve fitting algorithm will attempt to
+	// fit the curve with a smooth curve, which is generally not a disaster but
+	// will usually result in more subdivision. Conversely, it might be useful
+	// to report near-cusps, specifically points of curvature maxima where the
+	// curvature is large but still mathematically finite.
 	BreakCusp(start, end float64) (float64, bool)
 }
 
-// / Compute moment integrals.
-// /
-// / This method computes the integrals of y dx, x y dx, and y^2 dx over the
-// / length of this curve. From these integrals it is fairly straightforward
-// / to derive the moments needed for curve fitting.
-// /
-// / A default implementation is proved which does quadrature integration
-// / with Green's theorem, in terms of samples evaluated with
-// / [`sample_pt_deriv`].
-// /
-// / [`sample_pt_deriv`]: ParamCurveFit::sample_pt_deriv
+type MomentIntegraler interface {
+	MomentIntegrals(start, end float64) (float64, float64, float64)
+}
+
+// MomentIntegrals computes moment integrals.
+//
+// This function computes the integrals of y dx, x y dx, and y^2 dx over the
+// length of this curve. From these integrals it is fairly straightforward
+// to derive the moments needed for curve fitting.
+//
+// By default it uses quadrature integration with Green's theorem, in terms of
+// samples evaluated with [FittableCurve.SamplePtDeriv]. If pcf implements
+// [MomentIntegraler], then this function defers to it.
 func MomentIntegrals(pcf FittableCurve, start, end float64) (float64, float64, float64) {
-	if pcf, ok := pcf.(interface {
-		MomentIntegrals(start, end float64) (float64, float64, float64)
-	}); ok {
+	if pcf, ok := pcf.(MomentIntegraler); ok {
 		return pcf.MomentIntegrals(start, end)
 	}
 	t0 := 0.5 * (start + end)
@@ -116,10 +115,10 @@ func MomentIntegrals(pcf FittableCurve, start, end float64) (float64, float64, f
 	return a * dt, x * dt, y * dt
 }
 
-// / Fit a single cubic to a range of the source curve.
-// /
-// / Returns the cubic segment and the square of the error. Returns false if no fitting
-// / cubic could be computed.
+// FitToCubic fits a single cubic to a range of the source curve.
+//
+// Returns the cubic segment and the square of the error. Returns false if no
+// fitting cubic could be computed.
 func FitToCubic(
 	source FittableCurve,
 	rangeStart float64,
@@ -148,7 +147,7 @@ func FitToCubic(
 	dx, dy := d.X, d.Y
 	// Subtract off area of chord
 	area -= dx * (y0 + 0.5*dy)
-	// `area` is signed area of closed curve segment.
+	// area is signed area of closed curve segment.
 	// This quantity is invariant to translation and rotation.
 
 	// Subtract off moment of chord
@@ -160,7 +159,7 @@ func FitToCubic(
 	y = 0.5*y - y0*area
 	// Rotate into place (this also scales up by chordlength for efficiency).
 	moment := d.X*x + d.Y*y
-	// `moment` is the chordlength times the x moment of the curve translated
+	// moment is the chordlength times the x moment of the curve translated
 	// so its start point is on the origin, and rotated so its end point is on the
 	// x axis.
 
@@ -199,7 +198,7 @@ func FitToCubic(
 	}
 }
 
-// // Returns curves matching area and moment, given unit chord.
+// cubicFit returns curves matching area and moment, given unit chord.
 func cubicFit(th0 float64, th1 float64, area float64, mx float64) ([4]struct {
 	cbez CubicBez
 	d0   float64
@@ -318,17 +317,17 @@ func cubicFit(th0 float64, th1 float64, area float64, mx float64) ([4]struct {
 	return out, outN
 }
 
-// / A sample point of a curve for fitting.
+// CurveFitSample describes a sample point of a curve for fitting.
 type CurveFitSample struct {
-	/// A point on the curve at the sample location.
+	// A point on the curve at the sample location.
 	Point Point
-	/// A vector tangent to the curve at the sample location.
+	// A vector tangent to the curve at the sample location.
 	Tangent Vec2
 }
 
-// / Intersect a ray orthogonal to the tangent with the given cubic.
-// /
-// / Returns a vector of `t` values on the cubic.
+// Intersect intersects a ray orthogonal to the tangent with the given cubic.
+//
+// Returns a vector of t values on the cubic.
 func (cfs CurveFitSample) Intersect(c CubicBez) ([3]float64, int) {
 	p1 := c.P1.Sub(c.P0).Mul(3)
 	p2 := Vec2(c.P2).Mul(3).Sub(Vec2(c.P1).Mul(6)).Add(Vec2(c.P0).Mul(3))
@@ -357,7 +356,7 @@ func (cfs CurveFitSample) Intersect(c CubicBez) ([3]float64, int) {
 // necessarily the minimum number of segments.
 //
 // In general, the resulting Bézier path should have a [Fréchet distance] less
-// than the provided `accuracy` parameter. However, this is not a rigorous
+// than the provided accuracy parameter. However, this is not a rigorous
 // guarantee, as the error metric is computed approximately.
 //
 // This function is intended for use when the source curve is piecewise
@@ -441,14 +440,14 @@ func fitToBezPathRec(
 	return true, needMove
 }
 
-// / Try fitting a line.
-// /
-// / This is especially useful for very short chords, in which the standard
-// / cubic fit is not numerically stable. The tangents are not considered, so
-// / it's useful in cusp and near-cusp situations where the tangents are not
-// / reliable, as well.
-// /
-// / Returns the line raised to a cubic and the error, if within tolerance.
+// tryFitLine tries fitting a line.
+//
+// This is especially useful for very short chords, in which the standard
+// cubic fit is not numerically stable. The tangents are not considered, so
+// it's useful in cusp and near-cusp situations where the tangents are not
+// reliable, as well.
+//
+// Returns the line raised to a cubic and the error, if within tolerance.
 func tryFitLine(
 	source FittableCurve,
 	accuracy float64,
@@ -488,7 +487,7 @@ func tryFitLine(
 // of segments.
 //
 // In general, the resulting Bézier path should have a [Fréchet distance] less
-// than the provided `accuracy` parameter. However, this is not a rigorous
+// than the provided accuracy parameter. However, this is not a rigorous
 // guarantee, as the error metric is computed approximately.
 //
 // [Fréchet distance]: https://en.wikipedia.org/wiki/Fr%C3%A9chet_distance
@@ -517,9 +516,9 @@ func FitToBezPathOpt(source FittableCurve, accuracy float64) BezPath {
 	return path
 }
 
-// / Fit a range without cusps.
-// /
-// / Returns true and a cusp's location if a cusp was found.
+// fitToBezPathOptInner fits a range without cusps.
+//
+// Returns true and a cusp's location if a cusp was found.
 func fitToBezPathOptInner(
 	source FittableCurve,
 	accuracy float64,
@@ -659,8 +658,8 @@ func fitOptSegment(source FittableCurve, accuracy float64, rangeStart, rangeEnd 
 	}
 }
 
-// / Ok result is delta error (accuracy - error of last seg).
-// / Err result is a cusp.
+// fitOptErrDelta returns the delta error (accuracy - error of last segment) or
+// a cusp.
 func fitOptErrDelta(
 	source FittableCurve,
 	accuracy float64,
@@ -693,7 +692,7 @@ func fitOptErrDelta(
 	return result[float64, float64]{isOK: true, ok: accuracy - err}
 }
 
-// / An acceleration structure for estimating curve distance
+// curveDist is an acceleration structure for estimating curve distance.
 type curveDist struct {
 	samples    [numSamples]CurveFitSample
 	arcparams  []float64
@@ -754,7 +753,7 @@ func (cd *curveDist) computeArcParams(source FittableCurve) {
 	}
 }
 
-// / Evaluate distance based on arc length parametrization
+// evalArc evaluates distance based on arc length parametrization.
 func (cd *curveDist) evalArc(c CubicBez, acc2 float64) (float64, bool) {
 	// TODO: this could perhaps be tuned.
 	const epsilon = 1e-9
@@ -773,13 +772,13 @@ func (cd *curveDist) evalArc(c CubicBez, acc2 float64) (float64, bool) {
 	return maxErr2, true
 }
 
-// / Evaluate distance to a cubic approximation.
-// /
-// / If distance exceeds stated accuracy, can return `None`. Note that
-// / `acc2` is the square of the target.
-// /
-// / Returns the square of the error, which is intended to be a good
-// / approximation of the Fréchet distance.
+// evalRay evaluates distance to a cubic approximation.
+//
+// If distance exceeds stated accuracy, can return false. Note that
+// acc2 is the square of the target.
+//
+// Returns the square of the error, which is intended to be a good
+// approximation of the Fréchet distance.
 func (cd *curveDist) evalRay(c CubicBez, acc2 float64) (float64, bool) {
 	maxErr2 := 0.0
 	for _, sample := range cd.samples {

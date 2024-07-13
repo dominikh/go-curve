@@ -49,9 +49,9 @@ func (c CubicBez) Winding(pt Point) int {
 	return 0
 }
 
-// / Arclength of a cubic Bézier segment.
-// /
-// / This is an adaptive subdivision approach using Legendre-Gauss quadrature
+// Arclen returns the arclength of a cubic Bézier segment.
+//
+// This is an adaptive subdivision approach using Legendre-Gauss quadrature
 func (c CubicBez) Arclen(accuracy float64) float64 {
 	return c.arclen(accuracy, 0)
 }
@@ -109,7 +109,7 @@ func (cb CubicBez) Eval(t float64) Point {
 	return Point(v)
 }
 
-// / Subdivide into halves, using de Casteljau.
+// Subdivide subdivides the cubic into halves, using de Casteljau.
 func (c CubicBez) Subdivide() (CubicBez, CubicBez) {
 	pm := c.Eval(0.5)
 	return CubicBez{
@@ -126,7 +126,7 @@ func (c CubicBez) Subdivide() (CubicBez, CubicBez) {
 		}
 }
 
-// / Subdivide into halves, using de Casteljau.
+// SubdivideCurve subdivides the cubic into halves, using de Casteljau.
 func (c CubicBez) SubdivideCurve() (ParametricCurve, ParametricCurve) {
 	return c.Subdivide()
 }
@@ -144,20 +144,20 @@ type CubicToQuadraticSegment struct {
 	Segment    QuadBez
 }
 
-// / Convert to quadratic Béziers.
-// /
-// / The iterator returns the start and end parameter in the cubic of each quadratic
-// / segment, along with the quadratic.
-// /
-// / Note that the resulting quadratic Béziers are not in general G1 continuous;
-// / they are optimized for minimizing distance error.
-// /
-// / This iterator will always produce at least one `QuadBez`.
+// Quadratics converts the cubic Béziers to quadratic Béziers.
+//
+// The iterator returns the start and end parameter in the cubic of each quadratic
+// segment, along with the quadratic.
+//
+// Note that the resulting quadratic Béziers are not in general G1 continuous;
+// they are optimized for minimizing distance error.
+//
+// This iterator will always produce at least one value.
 func (c CubicBez) Quadratics(accuracy float64) iter.Seq[CubicToQuadraticSegment] {
 	// The maximum error, as a vector from the cubic to the best approximating
 	// quadratic, is proportional to the third derivative, which is constant
 	// across the segment. Thus, the error scales down as the third power of
-	// the number of subdivisions. Our strategy then is to subdivide `t` evenly.
+	// the number of subdivisions. Our strategy then is to subdivide t evenly.
 	//
 	// This is an overestimate of the error because only the component
 	// perpendicular to the first derivative is important. But the simplicity is
@@ -300,13 +300,13 @@ func (c CubicBez) regularize(dimension float64) CubicBez {
 	return out
 }
 
-// / Classification result for cusp detection.
+// CustType defines the classification result for cusp detection.
 type CuspType int
 
 const (
-	/// Cusp is a loop.
+	// Cusp is a loop.
 	CuspTypeLoop CuspType = iota + 1
-	/// Cusp has two closely spaced inflection points.
+	// Cusp has two closely spaced inflection points.
 	CuspTypeDoubleInflection
 )
 
@@ -357,7 +357,7 @@ func (c CubicBez) Transform(aff Affine) CubicBez {
 	}
 }
 
-// / Find the nearest point, using subdivision.
+// Nearest finds the nearest point, using subdivision.
 func (c CubicBez) Nearest(pt Point, accuracy float64) (distSq, t float64) {
 	var bestR option[float64]
 	bestT := 0.0
@@ -455,13 +455,11 @@ func cubicBezCoefficients(x0, x1, x2, x3 float64) (_, _, _, _ float64) {
 	return p0, p1, p2, p3
 }
 
-// / Determine the inflection points.
-// /
-// / Return value is t parameter for the inflection points of the curve segment.
-// / There are a maximum of two for a cubic Bézier.
-// /
-// / See <https://www.caffeineowl.com/graphics/2d/vectorial/cubic-inflexion.html>
-// / for the theory.
+// Inflections returns the inflection points.
+//
+// The function returns up to two inflection points in the first return
+// parameter, with the second parameter specifying the number of points
+// returned.
 func (cb CubicBez) Inflections() ([2]float64, int) {
 	a := cb.P1.Sub(cb.P0)
 	b := cb.P2.Sub(cb.P1).Sub(a)
@@ -478,10 +476,11 @@ func (cb CubicBez) Inflections() ([2]float64, int) {
 	return out, outN
 }
 
-// / Return a [`QuadSpline`] approximating this cubic Bézier.
-// /
-// / Returns `None` if no suitable approximation is found within the given
-// / tolerance.
+// ApproxQuadSpline returns a quadratic B-spline approximating this cubic
+// Bézier.
+//
+// Returns false if no suitable approximation is found within the given
+// tolerance.
 func (cb CubicBez) ApproxQuadSpline(accuracy float64) (QuadBSpline, bool) {
 	for i := range maxSplineSplit {
 		if spline, ok := cb.approxQuadSplineN(i+1, accuracy); ok {
@@ -491,7 +490,7 @@ func (cb CubicBez) ApproxQuadSpline(accuracy float64) (QuadBSpline, bool) {
 	return nil, false
 }
 
-// Approximate a cubic curve with a quadratic spline of `n` curves
+// Approximate a cubic curve with a quadratic spline of n curves
 func (c CubicBez) approxQuadSplineN(n int, accuracy float64) (QuadBSpline, bool) {
 	if n == 1 {
 		qb, ok := c.tryApproxQuadratic(accuracy)
@@ -604,7 +603,7 @@ func (c CubicBez) splitIntoN(n int) iter.Seq[CubicBez] {
 			c1 := b.Mul(2.0).Mul(t1).Add(c).Add(a.Mul(3.0).Mul(t1_2)).Mul(dt)
 			d1 := a.Mul(t1).Mul(t1_2).Add(b.Mul(t1_2)).Add(c.Mul(t1)).Add(d)
 
-			/// Rust port of cu2qu [calc_cubic_points](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L63-L68)
+			// Rust port of cu2qu [calc_cubic_points](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L63-L68)
 			p0 := Point(d1)
 			p1 := Point(c1.Div(3)).Translate(d1)
 			p2 := Point(b1.Add(c1).Div(3)).Translate(Vec2(p1))
@@ -661,9 +660,9 @@ func (c CubicBez) subdivide3() (CubicBez, CubicBez, CubicBez) {
 	return left, mid, right
 }
 
-// / Does this curve fit inside the given distance from the origin?
-// /
-// / Rust port of cu2qu [cubic_farthest_fit_inside](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L281)
+// Does this curve fit inside the given distance from the origin?
+//
+// Rust port of cu2qu [cubic_farthest_fit_inside](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L281)
 func (c CubicBez) fitsInside(distance float64) bool {
 	if Vec2(c.P2).Hypot() <= distance && Vec2(c.P1).Hypot() <= distance {
 		return true
@@ -683,10 +682,10 @@ func (c CubicBez) approxQuadControl(t float64) Point {
 	return p1.Lerp(p2, t)
 }
 
-// / Approximate a cubic with a single quadratic
-// /
-// / Returns a quadratic approximating the given cubic that maintains
-// / endpoint tangents if that is within tolerance, or `None` otherwise.
+// Approximate a cubic with a single quadratic
+//
+// Returns a quadratic approximating the given cubic that maintains
+// endpoint tangents if that is within tolerance, or false otherwise.
 func (c CubicBez) tryApproxQuadratic(accuracy float64) (QuadBez, bool) {
 	q1, ok := Line{c.P0, c.P1}.CrossingPoint(Line{c.P2, c.P3})
 	if !ok {
@@ -707,13 +706,9 @@ func (c CubicBez) tryApproxQuadratic(accuracy float64) (QuadBez, bool) {
 	return QuadBez{c.P0, q1, c.P3}, true
 }
 
-// / Convert multiple cubic Bézier curves to quadratic splines.
-// /
-// / Ensures that the resulting splines have the same number of control points.
-// /
-// / Rust port of cu2qu [cubic_approx_quadratic](https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/cu2qu/cu2qu.py#L322)
-//
-// CubicsToQuadraticSplines converts multiple cubic Béziers to quadratic
+// CubicsToQuadraticSplines converts multiple cubic Bézier curves to quadratic
+// splines. It ensures that the resulting splines have the same number of
+// control points.
 func CubicsToQuadraticSplines(curves []CubicBez, accuracy float64) ([]QuadBSpline, bool) {
 	result := make([]QuadBSpline, 0, len(curves))
 outer:

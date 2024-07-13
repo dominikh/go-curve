@@ -1,3 +1,29 @@
+// Simplification of a Bézier path.
+//
+// This file is currently experimental.
+//
+// The functions in this file create a simplifyBezPath object, which can then
+// be fed to FitToBezPath or FitToBezPathOpt depending on the degree
+// of optimization desired.
+//
+// The implementation uses a number of techniques to achieve high performance and
+// accuracy. The parameter (generally written 't') evenly divides the curve segments
+// in the original, so sampling can be done in constant time. The derivatives are
+// computed analytically, as that is straightforward with Béziers.
+//
+// The areas and moments are computed analytically (using Green's theorem), and
+// the prefix sum is stored. Thus, it is possible to analytically compute the area
+// and moment of any subdivision of the curve, also in constant time, by taking
+// the difference of two stored prefix sum values, then fixing up the subsegments.
+//
+// A current limitation (hoped to be addressed in the future) is that non-regular
+// cubic segments may have tangents computed incorrectly. This can easily happen,
+// for example when setting a control point equal to an endpoint.
+//
+// In addition, this method does not report corners (adjoining segments where the
+// tangents are not continuous). It is not clear whether it's best to handle such
+// cases here, or in client code.
+
 package curve
 
 import (
@@ -5,43 +31,14 @@ import (
 	"math"
 )
 
-//! Simplification of a Bézier path.
-//!
-//! This module is currently experimental.
-//!
-//! The methods in this module create a `SimplifyBezPath` object, which can then
-//! be fed to [`fit_to_bezpath`] or [`fit_to_bezpath_opt`] depending on the degree
-//! of optimization desired.
-//!
-//! The implementation uses a number of techniques to achieve high performance and
-//! accuracy. The parameter (generally written `t`) evenly divides the curve segments
-//! in the original, so sampling can be done in constant time. The derivatives are
-//! computed analytically, as that is straightforward with Béziers.
-//!
-//! The areas and moments are computed analytically (using Green's theorem), and
-//! the prefix sum is stored. Thus, it is possible to analytically compute the area
-//! and moment of any subdivision of the curve, also in constant time, by taking
-//! the difference of two stored prefix sum values, then fixing up the subsegments.
-//!
-//! A current limitation (hoped to be addressed in the future) is that non-regular
-//! cubic segments may have tangents computed incorrectly. This can easily happen,
-//! for example when setting a control point equal to an endpoint.
-//!
-//! In addition, this method does not report corners (adjoining segments where the
-//! tangents are not continuous). It is not clear whether it's best to handle such
-//! cases here, or in client code.
-//!
-//! [`fit_to_bezpath`]: crate::fit_to_bezpath
-//! [`fit_to_bezpath_opt`]: crate::fit_to_bezpath_opt
-
 type simplifyBezPath struct {
 	ss []simplifyCubic
 }
 
-// / Set up a new Bézier path for simplification.
-// /
-// / Currently this is not dealing with discontinuities at all, but it
-// / could be extended to do so.
+// newSimplifyBezPath sets up a new Bézier path for simplification.
+//
+// Currently this is not dealing with discontinuities at all, but it
+// could be extended to do so.
 func newSimplifyBezPath(seq iter.Seq[PathSegment]) simplifyBezPath {
 	var a, x, y float64
 	var ss []simplifyCubic
@@ -111,9 +108,9 @@ func (simp simplifyBezPath) MomentIntegrals(start, end float64) (float64, float6
 	}
 }
 
-// / Resolve a `t` value to a cubic.
-// /
-// / Also return the resulting `t` value for the selected cubic.
+// scale resolves a t value to a cubic.
+//
+// Also return the resulting t value for the selected cubic.
 func (simp simplifyBezPath) scale(t float64) (int, float64) {
 	tScale := t * float64(len(simp.ss))
 	tFloor := math.Floor(tScale)
@@ -279,20 +276,20 @@ func (ss *simplifyState) flush() bool {
 	return true
 }
 
-// / Simplify a Bézier path.
-// /
-// / This function simplifies an arbitrary Bézier path; it is designed to handle
-// / multiple subpaths and also corners.
-// /
-// / The underlying curve-fitting approach works best if the source path is very
-// / smooth. If it contains higher frequency noise, then results may be poor, as
-// / the resulting curve matches the original with G1 continuity at each subdivision
-// / point, and also preserves the area. For such inputs, consider some form of
-// / smoothing or low-pass filtering before simplification. In particular, if the
-// / input is derived from a sequence of points, consider fitting a smooth spline.
-// /
-// / We may add such capabilities in the future, possibly as opt-in smoothing
-// / specified through the options.
+// Simplify simplifies a Bézier path.
+//
+// This function simplifies an arbitrary Bézier path; it is designed to handle
+// multiple subpaths and also corners.
+//
+// The underlying curve-fitting approach works best if the source path is very
+// smooth. If it contains higher frequency noise, then results may be poor, as
+// the resulting curve matches the original with G1 continuity at each subdivision
+// point, and also preserves the area. For such inputs, consider some form of
+// smoothing or low-pass filtering before simplification. In particular, if the
+// input is derived from a sequence of points, consider fitting a smooth spline.
+//
+// We may add such capabilities in the future, possibly as opt-in smoothing
+// specified through the options.
 func Simplify(
 	path iter.Seq[PathElement],
 	accuracy float64,

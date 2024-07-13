@@ -16,25 +16,24 @@ import (
 // subdivided to limit the number of extrema.
 const MaxExtrema = 4
 
-// / A default value for methods that take an 'accuracy' argument.
-// /
-// / This value is intended to be suitable for general-purpose use, such as
-// / 2D graphics.
+// DefaultAccuracy is a default value for methods that take an accuracy
+// argument. It is suitable for general-purpose use, such as 2D graphics.
 const DefaultAccuracy = 1e-6
 
-// / A parametrized curve that reports its extrema.
+// Extremer describes parametrized curves that report their extrema.
 type Extremer interface {
-	/// Compute the extrema of the curve.
-	///
-	/// Only extrema within the interior of the curve count.
-	/// At most four extrema can be reported, which is sufficient for
-	/// cubic Béziers.
-	///
-	/// The extrema should be reported in increasing parameter order.
+	// Extrema computes the extrema of the curve.
+	//
+	// Only extrema within the interior of the curve count.
+	// At most four extrema can be reported, which is sufficient for
+	// cubic Béziers.
+	//
+	// The extrema should be reported in increasing parameter order.
 	Extrema() ([MaxExtrema]float64, int)
 }
 
-// / Return parameter ranges, each of which is monotonic within the range.
+// ExtremaRanges returns parameter ranges, each of which is monotonic within the
+// range.
 func ExtremaRanges(e Extremer) ([MaxExtrema + 1][2]float64, int) {
 	var ret [5][2]float64
 	var retN int
@@ -51,7 +50,8 @@ func ExtremaRanges(e Extremer) ([MaxExtrema + 1][2]float64, int) {
 	return ret, retN
 }
 
-// / The smallest rectangle that encloses the curve in the range (0..1).
+// BoundingBox returns the smallest (axis-aligned) rectangle that encloses the
+// curve in the range [0, 1].
 func BoundingBox(c interface {
 	Extremer
 	ParametricCurve
@@ -88,15 +88,6 @@ type ClosedShape interface {
 	Contains(pt Point) bool
 }
 
-// / A generic trait for open and closed shapes.
-// /
-// / This trait provides conversion from shapes to [`BezPath`]s, as well as
-// / general geometry functionality like computing [`area`], [`bounding_box`]es,
-// / and [`winding`] number.
-// /
-// / [`area`]: Shape::area
-// / [`bounding_box`]: Shape::bounding_box
-// / [`winding`]: Shape::winding
 type Shape interface {
 	// Perimeter returns the length of a shape's perimeter.
 	Perimeter(accuracy float64) float64
@@ -125,9 +116,9 @@ type Shape interface {
 type ParametricCurve interface {
 	// Eval evaluates the curve at parameter t. Generally, t is in the range [0, 1].
 	Eval(t float64) Point
-	/// Get a subsegment of the curve for the given parameter range.
+	// Get a subsegment of the curve for the given parameter range.
 	SubsegmentCurve(start, end float64) ParametricCurve
-	/// Subdivide into (roughly) halves.
+	// Subdivide into (roughly) halves.
 	SubdivideCurve() (ParametricCurve, ParametricCurve)
 	Start() Point
 	End() Point
@@ -256,6 +247,9 @@ type SVGOptions struct {
 //
 // See [WriteSVG] for a version that writes to an [io.Writer] instead of
 // returning a string.
+//
+// The current implementation doesn't take any special care to produce a
+// short string (reducing precision, using relative movement).
 func SVG(seq iter.Seq[PathElement], opts SVGOptions) string {
 	sb := &strings.Builder{}
 	WriteSVG(sb, seq, opts)
@@ -266,6 +260,9 @@ func SVG(seq iter.Seq[PathElement], opts SVGOptions) string {
 // commands and writes it to w.
 //
 // See [SVG] for a version that returns a string instead.
+//
+// The current implementation doesn't take any special care to produce a
+// short string (reducing precision, using relative movement).
 func WriteSVG(w io.Writer, seq iter.Seq[PathElement], opts SVGOptions) error {
 	space := []byte(" ")
 	z := []byte("Z")
@@ -331,7 +328,7 @@ func WriteSVG(w io.Writer, seq iter.Seq[PathElement], opts SVGOptions) error {
 // linear, it will return the root ignoring the quadratic term; the other root
 // might be out of representable range. In the degenerate case where all
 // coefficients are zero, so that all values of x satisfy the equation, a single
-// `0.0` is returned.
+// 0.0 is returned.
 func SolveQuadratic(c0, c1, c2 float64) ([2]float64, int) {
 	sc0 := c0 / c2
 	sc1 := c1 / c2
@@ -375,17 +372,19 @@ func SolveQuadratic(c0, c1, c2 float64) ([2]float64, int) {
 	}
 }
 
-// / Find real roots of cubic equation.
-// /
-// / The implementation is not (yet) fully robust, but it does handle the case
-// / where `c3` is zero (in that case, solving the quadratic equation).
-// /
-// / See: <https://momentsingraphics.de/CubicRoots.html>
-// /
-// / That implementation is in turn based on Jim Blinn's "How to Solve a Cubic
-// / Equation", which is masterful.
-// /
-// / Return values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.0
+// SolveCubic finds real roots of cubic equations.
+//
+// The implementation is not (yet) fully robust, but it does handle the case
+// where c3 is zero (in that case, solving the quadratic equation).
+//
+// See: https://momentsingraphics.de/CubicRoots.html
+//
+// That implementation is in turn based on Jim Blinn's "How to Solve a Cubic
+// Equation", which is masterful.
+//
+// Returns values of x for which c0 + c1 x + c2 x² + c3 x³ = 0.0
+//
+// The second return value states how many roots were found.
 func SolveCubic(c0, c1, c2, c3 float64) ([3]float64, int) {
 	c3Recip := 1.0 / c3
 	scaledC2 := c2 * (1.0 / 3.0 * c3Recip)
@@ -514,12 +513,12 @@ func depressedCubicDominant(g float64, h float64) float64 {
 	return x
 }
 
-// / Find real roots of a quartic equation.
-// /
-// / This is a fairly literal implementation of the method described in:
-// / Algorithm 1010: Boosting Efficiency in Solving Quartic Equations with
-// / No Compromise in Accuracy, Orellana and De Michele, ACM
-// / Transactions on Mathematical Software, Vol. 46, No. 2, May 2020.
+// SolveQuartic finds real roots of quartic equations.
+//
+// This is a fairly literal implementation of the method described in:
+// Algorithm 1010: Boosting Efficiency in Solving Quartic Equations with
+// No Compromise in Accuracy, Orellana and De Michele, ACM
+// Transactions on Mathematical Software, Vol. 46, No. 2, May 2020.
 func SolveQuartic(c0, c1, c2, c3, c4 float64) ([4]float64, int) {
 	if c4 == 0.0 {
 		ret, n := SolveCubic(c0, c1, c2, c3)
@@ -574,13 +573,13 @@ func solveQuarticInner(a float64, b float64, c float64, d float64, rescale bool)
 	return out, outN, true
 }
 
-// / Factor a quartic into two quadratics.
-// /
-// / Attempt to factor a quartic equation into two quadratic equations. Returns `None` either if there
-// / is overflow (in which case rescaling might succeed) or the factorization would result in
-// / complex coefficients.
-// /
-// / Discussion question: distinguish the two cases in return value?
+// factorQuarticInner factors a quartic into two quadratics.
+//
+// Attempt to factor a quartic equation into two quadratic equations. Returns
+// false either if there is overflow (in which case rescaling might succeed) or
+// the factorization would result in complex coefficients.
+//
+// Discussion question: distinguish the two cases in return value?
 func factorQuarticInner(
 	a float64,
 	b float64,

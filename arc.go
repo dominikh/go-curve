@@ -57,8 +57,8 @@ func (a Arc) PathElements(tolerance float64) iter.Seq[PathElement] {
 	}
 }
 
-// / Take the ellipse radii, how the radii are rotated, and the sweep angle, and return a
-// / point on the ellipse.
+// Take the ellipse radii, how the radii are rotated, and the sweep angle, and return a
+// point on the ellipse.
 func sampleEllipse(radii Vec2, xRotation float64, angle float64) Vec2 {
 	sin, cos := math.Sincos(angle)
 	u := radii.X * cos
@@ -66,7 +66,7 @@ func sampleEllipse(radii Vec2, xRotation float64, angle float64) Vec2 {
 	return rotatePt(Vec2{u, v}, xRotation)
 }
 
-// / Rotate `pt` about the origin by `angle` radians.
+// Rotate pt about the origin by angle radians.
 func rotatePt(pt Vec2, angle float64) Vec2 {
 	sin, cos := math.Sincos(angle)
 	return Vec2{
@@ -83,12 +83,12 @@ func (a Arc) BoundingBox() Rect {
 	panic("not implemented")
 }
 
-// / The perimeter of the ellipse.
-// /
-// / Note: Finding the perimeter of an ellipse is [fairly involved][wikipedia],
-// / so for now we just approximate by using the bezier curve representation.
-// /
-// / [wikipedia]: https://en.wikipedia.org/wiki/Ellipse#Circumference
+// Perimeter returns the perimeter of the ellipse.
+//
+// Note: Finding the perimeter of an ellipse is [fairly involved],
+// so for now we just approximate by using the bezier curve representation.
+//
+// [fairly involved]: https://en.wikipedia.org/wiki/Ellipse#Circumference
 func (a Arc) Perimeter(accuracy float64) float64 {
 	panic("not implemented")
 }

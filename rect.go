@@ -64,10 +64,10 @@ func (r Rect) MaxX() float64 { return max(r.X0, r.X1) }
 func (r Rect) MinY() float64 { return min(r.Y0, r.Y1) }
 func (r Rect) MaxY() float64 { return max(r.Y0, r.Y1) }
 
-// / The origin of the rectangle.
-// /
-// / This is the top left corner in a y-down space and with
-// / non-negative width and height.
+// Origin returns the origin of the rectangle.
+//
+// This is the top left corner in a y-down space and with
+// non-negative width and height.
 func (r Rect) Origin() Point {
 	return Point{
 		X: r.X0,
@@ -118,13 +118,13 @@ func (r Rect) Union(o Rect) Rect {
 	}
 }
 
-// / Compute the union with one point.
-// /
-// / This method includes the perimeter of zero-area rectangles.
-// / Thus, a succession of `union_pt` operations on a series of
-// / points yields their enclosing rectangle.
-// /
-// / Results are valid only if width and height are non-negative.
+// UnionPoint computes the union with one point.
+//
+// This method includes the perimeter of zero-area rectangles.
+// Thus, a succession of UnionPoint operations on a series of
+// points yields their enclosing rectangle.
+//
+// Results are valid only if width and height are non-negative.
 func (r Rect) UnionPoint(pt Point) Rect {
 	return Rect{
 		X0: min(r.X0, pt.X),
@@ -186,9 +186,8 @@ func (r Rect) Ceil() Rect {
 	}
 }
 
-// / Returns a new `Rect`,
-// / with each coordinate value rounded down to the nearest integer,
-// / unless they are already an integer.
+// Floor returns a new rectangle, with each coordinate value rounded down to the
+// nearest integer.
 func (r Rect) Floor() Rect {
 	return Rect{
 		X0: math.Floor(r.X0),
@@ -198,11 +197,11 @@ func (r Rect) Floor() Rect {
 	}
 }
 
-// / Returns a new `Rect`,
-// / with each coordinate value rounded away from the center of the `Rect`
-// / to the nearest integer, unless they are already an integer.
-// / That is to say this function will return the smallest possible `Rect`
-// / with integer coordinates that is a superset of `self`.
+// Expand returns a new rectangle, with each coordinate value rounded away from
+// the center of the rectangle to the nearest integer, unless they are already
+// an integer. That is to say this function will return the smallest possible
+// rectangle with integer coordinates that is a superset of the input
+// rectangle.
 func (r Rect) Expand() Rect {
 	var x0, y0, x1, y1 float64
 	if r.X0 < r.X1 {
@@ -227,11 +226,10 @@ func (r Rect) Expand() Rect {
 	}
 }
 
-// / Returns a new `Rect`,
-// / with each coordinate value rounded towards the center of the `Rect`
-// / to the nearest integer, unless they are already an integer.
-// / That is to say this function will return the biggest possible `Rect`
-// / with integer coordinates that is a subset of `self`.
+// Trunc returns a new rectangle, with each coordinate value rounded towards the
+// center of the rectangle to the nearest integer, unless they are already an
+// integer. That is to say this function will return the biggest possible
+// rectangle with integer coordinates that is a subset of the input rectangle.
 func (r Rect) Trunc() Rect {
 	var x0, y0, x1, y1 float64
 	if r.X0 < r.X1 {
@@ -256,17 +254,8 @@ func (r Rect) Trunc() Rect {
 	}
 }
 
-// / Scales the `Rect` by `factor` with respect to the origin (the point `(0, 0)`).
-// /
-// / # Examples
-// /
-// / ```
-// / use kurbo::Rect;
-// /
-// / let rect = Rect::new(2., 2., 4., 6.).scale_from_origin(2.);
-// / assert_eq!(rect.x0, 4.);
-// / assert_eq!(rect.x1, 8.);
-// / ```
+// ScaleFromOrigin scales the rectangle by the factor f with respect to the
+// origin (the point (0, 0)).
 func (r Rect) ScaleFromOrigin(f float64) Rect {
 	return Rect{
 		X0: r.X0 * f,
@@ -276,14 +265,14 @@ func (r Rect) ScaleFromOrigin(f float64) Rect {
 	}
 }
 
-// / The aspect ratio of the `Rect`.
-// /
-// / This is defined as the height divided by the width. It measures the
-// / "squareness" of the rectangle (a value of `1` is square).
-// /
-// / If the width is `0` the output will be `sign(y1 - y0) * infinity`.
-// /
-// / If The width and height are `0`, the result will be `NaN`.
+// AspectRatio returns the aspect ratio of the rectangle.
+//
+// This is defined as the height divided by the width. It measures the
+// "squareness" of the rectangle (a value of 1 is square).
+//
+// If the width is 0 the output will be "sign(y1 - y0) * infinity".
+//
+// If The width and height are 0, the result will be NaN.
 func (r Rect) AspectRatio() float64 {
 	return r.Size().AspectRatio()
 }
@@ -324,9 +313,9 @@ func (r Rect) Perimeter(accuracy float64) float64 {
 }
 
 func (r Rect) Winding(pt Point) int {
-	/// Note: this function is carefully designed so that if the plane is
-	/// tiled with rectangles, the winding number will be nonzero for exactly
-	/// one of them.
+	// Note: this function is carefully designed so that if the plane is
+	// tiled with rectangles, the winding number will be nonzero for exactly
+	// one of them.
 	xmin := min(r.X0, r.X1)
 	xmax := max(r.X0, r.X1)
 	ymin := min(r.Y0, r.Y1)
@@ -352,8 +341,8 @@ func (r Rect) PathElements(tolerance float64) iter.Seq[PathElement] {
 	}
 }
 
-// / Creates a new [`RoundedRect`] from this `Rect` and the provided
-// / corner radius.
+// RoundedRect creates a new [RoundedRect] from this rectangle and the provided
+// corner radii.
 func (r Rect) RoundedRect(radii RoundedRectRadii) RoundedRect {
 	r = r.Abs()
 	shortestSide := min(r.Width(), r.Height())
@@ -364,32 +353,18 @@ func (r Rect) RoundedRect(radii RoundedRectRadii) RoundedRect {
 	}
 }
 
-// / Returns the largest possible `Rect` that is fully contained in `self`
-// / with the given `aspect_ratio`.
-// /
-// / The aspect ratio is specified fractionally, as `height / width`.
-// /
-// / The resulting rectangle will be centered if it is smaller than the
-// / input rectangle.
-// /
-// / For the special case where the aspect ratio is `1.0`, the resulting
-// / `Rect` will be square.
-// /
-// / # Examples
-// /
-// / ```
-// / # use kurbo::Rect;
-// / let outer = Rect::new(0.0, 0.0, 10.0, 20.0);
-// / let inner = outer.contained_rect_with_aspect_ratio(1.0);
-// / // The new `Rect` is a square centered at the center of `outer`.
-// / assert_eq!(inner, Rect::new(0.0, 5.0, 10.0, 15.0));
-// / ```
-// /
+// ContainedRectWithAspectRatio returns the largest possible rectangle that is
+// fully contained in this rectangle, with the given aspect ratio.
+//
+// The aspect ratio is specified fractionally, as height / width.
+//
+// The resulting rectangle will be centered if it is smaller than the input
+// rectangle.
 func (r Rect) ContainedRectWithAspectRatio(aspectRatio float64) Rect {
 	width, height := r.Width(), r.Height()
 	rAspect := height / width
 
-	// TODO the parameter `1e-9` was chosen quickly and may not be optimal.
+	// TODO the parameter 1e-9 was chosen quickly and may not be optimal.
 	if math.Abs(rAspect-aspectRatio) < 1e-9 {
 		return r
 	} else if math.Abs(rAspect) < math.Abs(aspectRatio) {

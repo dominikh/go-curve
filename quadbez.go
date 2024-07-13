@@ -29,9 +29,8 @@ func (q QuadBez) Perimeter(accuracy float64) float64 {
 	return q.Arclen(accuracy)
 }
 
-// / Raise the order by 1.
-// /
-// / Returns a cubic Bézier segment that exactly represents this quadratic.
+// Raise raises the order by one, returning a cubic Bézier segment that exactly
+// represents this quadratic.
 func (q QuadBez) Raise() CubicBez {
 	return CubicBez{
 		q.P0,
@@ -170,7 +169,7 @@ func (q QuadBez) Extrema() ([MaxExtrema]float64, int) {
 }
 
 func (q QuadBez) Nearest(pt Point, accuracy float64) (distSq, outT float64) {
-	/// Find the nearest point, using analytical algorithm based on cubic root finding.
+	// Find the nearest point, using analytical algorithm based on cubic root finding.
 	evalT := func(pt Point, tBest *float64, rBest *option[float64], t float64, p0 Point) {
 		r := p0.Sub(pt).Hypot2()
 		if !rBest.isSet || r < rBest.value {
@@ -271,7 +270,7 @@ func (q QuadBez) determineSubdivT(params *flattenParams, x float64) float64 {
 	return (u - params.u0) * params.uscale
 }
 
-// / Estimate the number of subdivisions for flattening.
+// Estimate the number of subdivisions for flattening.
 func (q QuadBez) estimateSubdiv(sqrtTol float64) flattenParams {
 	// Determine transformation to $y = x^2$ parabola.
 	d01 := q.P1.Sub(q.P0)
@@ -314,7 +313,7 @@ type flattenParams struct {
 	a2     float64
 	u0     float64
 	uscale float64
-	/// The number of subdivisions * 2 * sqrtTol.
+	// The number of subdivisions * 2 * sqrtTol.
 	val float64
 }
 

@@ -47,7 +47,7 @@
 //
 // [ParametricCurve] describes parametrized curves. These curves can be
 // evaluated at t ∈ [0, 1] and return pairs of (x, y) values, commonly
-// interpreted as points in a 2D cartesian coordinate system. The simplest
+// interpreted as points in a 2D Cartesian coordinate system. The simplest
 // parametric curve is the [Line], whose evaluation is a simple linear
 // interpolation between its start and end points. More complex curves are the
 // quadratic and cubic Béziers, for example.
@@ -69,7 +69,17 @@
 //   - [PathSegment] (as it is a wrapper for [Line], [CubicBez], and [QuadBez])
 //   - [QuadBez]
 //
-// XXX paths (paths are composite Bezier curves.)
+// # Bézier paths
+//
+// Bézier paths consist of lines and quadratic and cubic Béziers. All shapes can
+// represent themselves as Bézier paths, and more complex curves can be
+// approximated by them.
+//
+// [BezPath] represents Bézier paths as a slice of path elements and provides
+// methods for building paths as well as for any path manipulation that needs
+// access to the collection of path elements. The two other representations are
+// iter.Seq[PathElement] and iter.Seq[PathSegment], see the Iterators section
+// for more on that.
 //
 // # Path elements and segments
 //
@@ -95,7 +105,7 @@
 // The primary curve used by this package is the cubic Bézier. Functions that
 // convert shapes to paths do so by approximating them with cubic Béziers (and
 // lines). Similarly, curve fitting approximates curves with cubic Béziers (and
-// lines). This is done because cubic Béziers hit the sweetspot of
+// lines). This is done because cubic Béziers hit the sweet spot of
 // expressiveness and computability.
 //
 // However, we also provide functions for working with quadratic Béziers,
@@ -105,7 +115,7 @@
 //
 // # Iterators
 //
-// Many functions in this package can operate on single path elements or
+// Many functions in this package can operate on individual path elements or
 // segments at a time and don't need random access. Similarly, many functions
 // don't have to remember or modify the sequence of path elements or segments
 // they produce. In those cases, they accept and return iterators, to avoid

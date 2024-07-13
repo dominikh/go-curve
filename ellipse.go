@@ -11,35 +11,34 @@ type Ellipse struct {
 
 var _ ClosedShape = Ellipse{}
 
-// / Create A new ellipse with a given center, radii, and rotation.
-// /
-// / The returned ellipse will be the result of taking a circle, stretching
-// / it by the `radii` along the x and y axes, then rotating it from the
-// / x axis by `rotation` radians, before finally translating the center
-// / to `center`.
-// /
-// / Rotation is clockwise in a y-down coordinate system. For more on
-// / rotation, see [`Affine::rotate`].
+// NewEllipse returns a new ellipse with a given center, radii, and rotation.
+//
+// The returned ellipse will be the result of taking a circle, stretching
+// it by the radii along the x and y axes, then rotating it from the
+// x axis by xRotation radians, before finally translating the center
+// to center.
+//
+// Rotation is clockwise in a y-down coordinate system. For more on
+// rotation, see [Rotate].
 func NewEllipse(center Point, radii Vec2, xRotation float64) Ellipse {
 	rx, ry := radii.Splat()
 	return newEllipse(Vec2(center), rx, ry, xRotation)
 }
 
-// / Returns the largest ellipse that can be bounded by this [`Rect`].
-// /
-// / This uses the absolute width and height of the rectangle.
-// /
-// / This ellipse is always axis-aligned; to apply rotation you can call
-// / [`with_rotation`] with the result.
-// /
-// / [`with_rotation`]: Ellipse::with_rotation
+// NewEllipseFromRect returns the largest ellipse that can be bounded by the
+// provided rectangle.
+//
+// This uses the absolute width and height of the rectangle.
+//
+// This ellipse is always axis-aligned; to apply rotation you can call
+// [Ellipse.WithRotation] on the result.
 func NewEllipseFromRect(rect Rect) Ellipse {
 	center := Vec2(rect.Center())
 	width, height := rect.Size().Scale(1.0 / 2.0).Splat()
 	return newEllipse(center, width, height, 0.0)
 }
 
-// NewEllipseFromAffine creates an ellipse from an affine transformation of the unit
+// NewEllipseFromAffine returns an ellipse from an affine transformation of the unit
 // circle.
 func NewEllipseFromAffine(aff Affine) Ellipse {
 	return Ellipse{inner: aff}
@@ -49,23 +48,23 @@ func NewEllipseFromCircle(c Circle) Ellipse {
 	return NewEllipse(c.Center, Vec(c.Radius, c.Radius), 0)
 }
 
-// / Create a new `Ellipse` centered on the provided point.
+// WithCenter returns a new ellipse centered on the provided point.
 func (e Ellipse) WithCenter(center Point) Ellipse {
 	return Ellipse{inner: e.inner.WithTranslation(Vec2(center))}
 }
 
-// / Create a new `Ellipse` with the provided radii.
+// WithRadii returns a new ellipse, with the radii replaced by the argument.
 func (e Ellipse) WithRadii(radii Vec2) Ellipse {
 	_, rotation := e.inner.svd()
 	translation := e.inner.Translation()
 	return newEllipse(translation, radii.X, radii.Y, rotation)
 }
 
-// / Create a new `Ellipse`, with the rotation replaced by `rotation`
-// / radians.
-// /
-// / The rotation is clockwise, for a y-down coordinate system. For more
-// / on rotation, See [`Affine::rotate`].
+// WithRotation returns a new ellipse, with the rotation replaced by the
+// argument.
+//
+// The rotation is clockwise, for a y-down coordinate system. For more
+// on rotation, See [Rotate].
 func (e Ellipse) WithRotation(rotation float64) Ellipse {
 	scale, _ := e.inner.svd()
 	translation := e.inner.Translation()
@@ -181,10 +180,7 @@ func (e Ellipse) Radii() Vec2 {
 	return radii
 }
 
-// / The ellipse's rotation, in radians.
-// /
-// / This allows all possible ellipses to be drawn by always starting with
-// / an ellipse with the two radii on the x and y axes.
+// Rotation returns the ellipse's rotation, in radians.
 func (e Ellipse) Rotation() float64 {
 	_, rot := e.inner.svd()
 	return rot

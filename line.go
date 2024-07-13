@@ -7,9 +7,9 @@ import (
 
 // Line represents a line segment. It is both a [Shape] and a [ParametricCurve].
 type Line struct {
-	/// The line's start point.
+	// The line's start point.
 	P0 Point
-	/// The line's end point.
+	// The line's end point.
 	P1 Point
 }
 
@@ -31,7 +31,8 @@ func (l Line) SolveForArclen(arclen float64, accuracy float64) float64 {
 	return arclen / l.P1.Sub(l.P0).Hypot()
 }
 
-// / Computes the point where two lines, if extended to infinity, would cross.
+// CrossingPoint computes the point where two lines, if extended to infinity,
+// would cross.
 func (l Line) CrossingPoint(o Line) (Point, bool) {
 	ab := l.P1.Sub(l.P0)
 	cd := o.P1.Sub(o.P0)

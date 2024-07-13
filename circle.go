@@ -66,7 +66,7 @@ func (c Circle) PathElements(tolerance float64) iter.Seq[PathElement] {
 	}
 }
 
-// / Create a [`CircleSegment`] by cutting out parts of this circle.
+// Segment returns a circle segment by cutting out parts of this circle.
 func (c Circle) Segment(innerRadius float64, startAngle, sweepAngle float64) CircleSegment {
 	return CircleSegment{
 		Center:      c.Center,
@@ -124,9 +124,9 @@ func (c Circle) Transform(aff Affine) Ellipse {
 	return NewEllipseFromCircle(c).Transform(aff)
 }
 
-// / A segment of a circle.
-// /
-// / If `inner_radius > 0`, then the shape will be a doughnut segment.
+// CircleSegment represents a segment of a circle.
+//
+// If InnerRadius > 0, then the shape will be a doughnut segment.
 type CircleSegment struct {
 	Center      Point
 	OuterRadius float64

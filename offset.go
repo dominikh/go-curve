@@ -27,10 +27,12 @@ type CubicOffset struct {
 
 var _ FittableCurve = (*CubicOffset)(nil)
 
-// / Create a new curve from Bézier segment and offset, with numerical robustness tweaks.
-// /
-// / The dimension represents a minimum feature size; the regularization is allowed to
-// / perturb the curve by this amount in order to improve the robustness.
+// NewCubicOffset returns a new offset curve from the given Bézier segment and
+// offset, with numerical robustness tweaks.
+//
+// The dimension represents a minimum feature size; the regularization is
+// allowed to perturb the curve by this amount in order to improve the
+// robustness.
 func NewCubicOffset(c CubicBez, d float64, dimension float64) CubicOffset {
 	c = c.regularize(dimension)
 
@@ -60,7 +62,7 @@ func (co *CubicOffset) Eval(t float64) Point {
 	return co.c.Eval(t).Translate(co.evalOffset(t))
 }
 
-// / Evaluate derivative of curve.
+// Evaluate derivative of curve.
 func (co *CubicOffset) evalDeriv(t float64) Vec2 {
 	return Vec2(co.q.Eval(t)).Mul(co.cuspSign(t))
 }
