@@ -1,0 +1,5 @@
+honnef.co/go/curve
+Copyright 2024 Dominik Honnef and contributors
+
+
+This package is based on code from Kurbo, Copyright 2018 Raph Levien.
