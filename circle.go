@@ -3,6 +3,7 @@ package curve
 import (
 	"iter"
 	"math"
+	"slices"
 )
 
 type Circle struct {
@@ -16,6 +17,8 @@ var _ ClosedShape = Circle{}
 func (c Circle) Contains(pt Point) bool {
 	return c.Winding(pt) != 0
 }
+
+func (c Circle) Path(tolerance float64) BezPath { return slices.Collect(c.PathElements(tolerance)) }
 
 func (c Circle) PathElements(tolerance float64) iter.Seq[PathElement] {
 	return func(yield func(PathElement) bool) {
@@ -140,6 +143,10 @@ var _ ClosedShape = CircleSegment{}
 // Contains implements ClosedShape.
 func (cs CircleSegment) Contains(pt Point) bool {
 	return cs.Winding(pt) != 0
+}
+
+func (cs CircleSegment) Path(tolerance float64) BezPath {
+	return slices.Collect(cs.PathElements(tolerance))
 }
 
 // PathElements implements Shape.

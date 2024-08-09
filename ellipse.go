@@ -3,6 +3,7 @@ package curve
 import (
 	"iter"
 	"math"
+	"slices"
 )
 
 type Ellipse struct {
@@ -130,6 +131,8 @@ func (e Ellipse) BoundingBox() Rect {
 		Y1: cy + rangeY,
 	}
 }
+
+func (e Ellipse) Path(tolerance float64) BezPath { return slices.Collect(e.PathElements(tolerance)) }
 
 // PathElements implements ClosedShape.
 func (e Ellipse) PathElements(tolerance float64) iter.Seq[PathElement] {

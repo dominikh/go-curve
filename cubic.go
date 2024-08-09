@@ -3,6 +3,7 @@ package curve
 import (
 	"iter"
 	"math"
+	"slices"
 	"sort"
 )
 
@@ -30,6 +31,8 @@ func (q CubicBez) IsNaN() bool {
 func (c CubicBez) BoundingBox() Rect {
 	return BoundingBox(c)
 }
+
+func (c CubicBez) Path(tolerance float64) BezPath { return slices.Collect(c.PathElements(tolerance)) }
 
 // PathElements implements [Shape].
 func (c CubicBez) PathElements(tolerance float64) iter.Seq[PathElement] {

@@ -3,6 +3,7 @@ package curve
 import (
 	"iter"
 	"math"
+	"slices"
 )
 
 type Arc struct {
@@ -19,6 +20,8 @@ var _ ClosedShape = Arc{}
 func (a Arc) Contains(pt Point) bool {
 	return a.Winding(pt) != 0
 }
+
+func (a Arc) Path(tolerance float64) BezPath { return slices.Collect(a.PathElements(tolerance)) }
 
 func (a Arc) PathElements(tolerance float64) iter.Seq[PathElement] {
 	return func(yield func(PathElement) bool) {

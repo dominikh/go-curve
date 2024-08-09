@@ -3,6 +3,7 @@ package curve
 import (
 	"iter"
 	"math"
+	"slices"
 )
 
 // Line represents a line segment. It is both a [Shape] and a [ParametricCurve].
@@ -71,6 +72,8 @@ func (l Line) BoundingBox() Rect {
 func (l Line) Perimeter(accuracy float64) float64 {
 	return l.Length()
 }
+
+func (l Line) Path(tolerance float64) BezPath { return slices.Collect(l.PathElements(tolerance)) }
 
 func (l Line) PathElements(tolerance float64) iter.Seq[PathElement] {
 	return func(yield func(PathElement) bool) {
