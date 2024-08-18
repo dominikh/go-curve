@@ -30,10 +30,10 @@ func NewRectFromOrigin(origin Point, size Size) Rect {
 // point.
 func NewRectFromCenter(center Point, size Size) Rect {
 	return Rect{
-		X0: center.X - size.Width,
-		Y0: center.Y - size.Height,
-		X1: center.X + size.Width,
-		Y1: center.Y + size.Height,
+		X0: center.X - size.Width/2,
+		Y0: center.Y - size.Height/2,
+		X1: center.X + size.Width/2,
+		Y1: center.Y + size.Height/2,
 	}
 }
 
