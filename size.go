@@ -118,3 +118,10 @@ func (sz Size) Scale(f float64) Size {
 		Height: sz.Height * f,
 	}
 }
+
+func (sz Size) Add(v Vec2) Size {
+	return Size{
+		Width:  sz.Width + v.X,
+		Height: sz.Height + v.Y,
+	}
+}
