@@ -80,7 +80,7 @@ func (sz Size) Floor() Size {
 
 // Expand returns a new size with width and height rounded away from zero to the
 // nearest integers.
-func (sz Size) Ewidthpand() Size {
+func (sz Size) Expand() Size {
 	return Size{
 		Width:  expand(sz.Width),
 		Height: expand(sz.Height),
