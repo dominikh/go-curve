@@ -443,6 +443,10 @@ func dropFirst[T any](seq iter.Seq[T]) iter.Seq[T] {
 	}
 }
 
+func (r RoundedRect) Path(tolerance float64) BezPath {
+	return slices.Collect(r.PathElements(tolerance))
+}
+
 func (r RoundedRect) PathElements(tolerance float64) iter.Seq[PathElement] {
 	buildArcIter := func(i int, center Point, ellipseRadii Vec2) iter.Seq[PathElement] {
 		a := Arc{
