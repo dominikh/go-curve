@@ -83,40 +83,40 @@ func (v Vec2) Normalize() Vec2 {
 }
 
 // Round returns a new vector with x and y rounded to the nearest integers.
-func (v Vec2) Round() Point {
-	return Point{
+func (v Vec2) Round() Vec2 {
+	return Vec2{
 		X: math.Round(v.X),
 		Y: math.Round(v.Y),
 	}
 }
 
 // Ceil returns a new vector with x and y rounded up to the nearest integers.
-func (v Vec2) Ceil() Point {
-	return Point{
+func (v Vec2) Ceil() Vec2 {
+	return Vec2{
 		X: math.Ceil(v.X),
 		Y: math.Ceil(v.Y),
 	}
 }
 
 // Floor returns a new vector with x and y rounded down to the nearest integers.
-func (v Vec2) Floor() Point {
-	return Point{
+func (v Vec2) Floor() Vec2 {
+	return Vec2{
 		X: math.Floor(v.X),
 		Y: math.Floor(v.Y),
 	}
 }
 
 // Expand returns a new vector with x and y rounded away from zero to the nearest integers.
-func (v Vec2) Expand() Point {
-	return Point{
+func (v Vec2) Expand() Vec2 {
+	return Vec2{
 		X: expand(v.X),
 		Y: expand(v.Y),
 	}
 }
 
 // Trunc returns a new vector with x and y rounded towards zero to the nearest integers.
-func (v Vec2) Trunc() Point {
-	return Point{
+func (v Vec2) Trunc() Vec2 {
+	return Vec2{
 		X: math.Trunc(v.X),
 		Y: math.Trunc(v.Y),
 	}
