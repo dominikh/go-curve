@@ -83,18 +83,18 @@ func (s Stroke) WithDashes(offset float64, pattern []float64) Stroke {
 }
 
 type strokeCtx struct {
-	// As a possible future optimization, we might not need separate storage
-	// for forward and backward paths, we can add forward to the output in-place.
-	// However, this structure is clearer and the cost fairly modest.
-
-	output       BezPath
-	forwardPath  BezPath
-	backwardPath BezPath
-	startPt      Point
-	startNorm    Vec2
-	startTan     Vec2
-	lastPt       Point
-	lastTan      Vec2
+	yield func(PathElement) bool
+	dead  bool
+	// forward paths are yielded directly instead of being accumulated like
+	// backwardPath is. emittedForward is set to true if any elements have been
+	// yielded, and reset to false after a path is completed.
+	emittedForward bool
+	backwardPath   BezPath
+	startPt        Point
+	startNorm      Vec2
+	startTan       Vec2
+	lastPt         Point
+	lastTan        Vec2
 	// Precomputation of the join threshold to optimize per-join logic.
 	// If hypot < (hypot + dot) * joinThresh omit join altogether.
 	joinThresh float64
@@ -119,7 +119,7 @@ func StrokePath(
 	style Stroke,
 	opts StrokeOpts,
 	tolerance float64,
-) BezPath {
+) iter.Seq[PathElement] {
 	if len(style.DashPattern) == 0 {
 		return strokeUndashed(path, style, tolerance, opts)
 	} else {
@@ -134,66 +134,75 @@ func strokeUndashed(
 	style Stroke,
 	tolerance float64,
 	opts StrokeOpts,
-) BezPath {
-	ctx := strokeCtx{
-		joinThresh: 2.0 * tolerance / style.Width,
-	}
-	for el := range path {
-		p0 := ctx.lastPt
-		switch el.Kind {
-		case MoveToKind:
-			p := el.P0
-			ctx.finish(style)
-			ctx.startPt = p
-			ctx.lastPt = p
-		case LineToKind:
-			p1 := el.P0
-			if p1 != p0 {
-				tangent := p1.Sub(p0)
-				ctx.doJoin(style, tangent)
-				ctx.lastTan = tangent
-				ctx.doLine(style, tangent, p1)
-			}
-		case QuadToKind:
-			p1, p2 := el.P0, el.P1
-			if p1 != p0 || p2 != p0 {
-				q := QuadBez{p0, p1, p2}
-				tan0, tan1 := q.Tangents()
-				ctx.doJoin(style, tan0)
-				ctx.doCubic(style, q.Raise(), tolerance, opts)
-				ctx.lastTan = tan1
-			}
-		case CubicToKind:
-			p1, p2, p3 := el.P0, el.P1, el.P2
-			if p1 != p0 || p2 != p0 || p3 != p0 {
-				c := CubicBez{p0, p1, p2, p3}
-				tan0, tan1 := c.Tangents()
-				ctx.doJoin(style, tan0)
-				ctx.doCubic(style, c, tolerance, opts)
-				ctx.lastTan = tan1
-			}
-		case ClosePathKind:
-			if p0 != ctx.startPt {
-				tangent := ctx.startPt.Sub(p0)
-				ctx.doJoin(style, tangent)
-				ctx.lastTan = tangent
-				ctx.doLine(style, tangent, ctx.startPt)
-			}
-			ctx.finishClosed(style)
+) iter.Seq[PathElement] {
+	return func(yield func(v PathElement) bool) {
+		ctx := strokeCtx{
+			yield:      yield,
+			joinThresh: 2.0 * tolerance / style.Width,
 		}
+		for el := range path {
+			p0 := ctx.lastPt
+			switch el.Kind {
+			case MoveToKind:
+				p := el.P0
+				ctx.finish(style)
+				ctx.startPt = p
+				ctx.lastPt = p
+			case LineToKind:
+				p1 := el.P0
+				if p1 != p0 {
+					tangent := p1.Sub(p0)
+					ctx.doJoin(style, tangent)
+					ctx.lastTan = tangent
+					ctx.doLine(style, tangent, p1)
+				}
+			case QuadToKind:
+				p1, p2 := el.P0, el.P1
+				if p1 != p0 || p2 != p0 {
+					q := QuadBez{p0, p1, p2}
+					tan0, tan1 := q.Tangents()
+					ctx.doJoin(style, tan0)
+					ctx.doCubic(style, q.Raise(), tolerance, opts)
+					ctx.lastTan = tan1
+				}
+			case CubicToKind:
+				p1, p2, p3 := el.P0, el.P1, el.P2
+				if p1 != p0 || p2 != p0 || p3 != p0 {
+					c := CubicBez{p0, p1, p2, p3}
+					tan0, tan1 := c.Tangents()
+					ctx.doJoin(style, tan0)
+					ctx.doCubic(style, c, tolerance, opts)
+					ctx.lastTan = tan1
+				}
+			case ClosePathKind:
+				if p0 != ctx.startPt {
+					tangent := ctx.startPt.Sub(p0)
+					ctx.doJoin(style, tangent)
+					ctx.lastTan = tangent
+					ctx.doLine(style, tangent, ctx.startPt)
+				}
+				ctx.finishClosed(style)
+			}
+		}
+		ctx.finish(style)
 	}
-	ctx.finish(style)
-	return ctx.output
 }
 
-// Append forward and backward paths to output.
+func (ctx *strokeCtx) doYield(el PathElement) {
+	if ctx.dead {
+		return
+	}
+	ctx.dead = !ctx.yield(el)
+	ctx.emittedForward = true
+}
+
+// Append backward path to output.
 func (ctx *strokeCtx) finish(style Stroke) {
 	// TODO: scale
 	const tolerance = 1e-3
-	if !ctx.forwardPath.HasSegments() {
+	if !ctx.emittedForward {
 		return
 	}
-	ctx.output = append(ctx.output, ctx.forwardPath...)
 	returnPt, ok := ctx.backwardPath[len(ctx.backwardPath)-1].EndPoint()
 	if !ok {
 		panic("unreachable")
@@ -201,42 +210,41 @@ func (ctx *strokeCtx) finish(style Stroke) {
 	d := ctx.lastPt.Sub(returnPt)
 	switch style.EndCap {
 	case ButtCap:
-		ctx.output.LineTo(returnPt)
+		ctx.LineTo(returnPt)
 	case RoundCap:
-		roundCap(&ctx.output, tolerance, ctx.lastPt, d)
+		roundCap(ctx, tolerance, ctx.lastPt, d)
 	case SquareCap:
-		squareCap(&ctx.output, false, ctx.lastPt, d)
+		squareCap(ctx, false, ctx.lastPt, d)
 	}
-	extendReversed(&ctx.output, ctx.backwardPath)
+	extendReversed(ctx, ctx.backwardPath)
 	switch style.StartCap {
 	case ButtCap:
-		ctx.output.ClosePath()
+		ctx.ClosePath()
 	case RoundCap:
-		roundCap(&ctx.output, tolerance, ctx.startPt, ctx.startNorm)
+		roundCap(ctx, tolerance, ctx.startPt, ctx.startNorm)
 	case SquareCap:
-		squareCap(&ctx.output, true, ctx.startPt, ctx.startNorm)
+		squareCap(ctx, true, ctx.startPt, ctx.startNorm)
 	}
 
-	ctx.forwardPath.Truncate(0)
+	ctx.emittedForward = false
 	ctx.backwardPath.Truncate(0)
 }
 
 // Finish a closed path
 func (ctx *strokeCtx) finishClosed(style Stroke) {
-	if !ctx.forwardPath.HasSegments() {
+	if !ctx.emittedForward {
 		return
 	}
 	ctx.doJoin(style, ctx.startTan)
-	ctx.output = append(ctx.output, ctx.forwardPath...)
-	ctx.output.ClosePath()
+	ctx.ClosePath()
 	lastPt, ok := ctx.backwardPath[len(ctx.backwardPath)-1].EndPoint()
 	if !ok {
 		panic("unreachable")
 	}
-	ctx.output.MoveTo(lastPt)
-	extendReversed(&ctx.output, ctx.backwardPath)
-	ctx.output.ClosePath()
-	ctx.forwardPath.Truncate(0)
+	ctx.MoveTo(lastPt)
+	extendReversed(ctx, ctx.backwardPath)
+	ctx.ClosePath()
+	ctx.emittedForward = false
 	ctx.backwardPath.Truncate(0)
 }
 
@@ -246,8 +254,8 @@ func (ctx *strokeCtx) doJoin(style Stroke, tan0 Vec2) {
 	scale := 0.5 * style.Width / tan0.Hypot()
 	norm := Vec(-tan0.Y, tan0.X).Mul(scale)
 	p0 := ctx.lastPt
-	if len(ctx.forwardPath) == 0 {
-		ctx.forwardPath.MoveTo(p0.Translate(norm.Negate()))
+	if !ctx.emittedForward {
+		ctx.MoveTo(p0.Translate(norm.Negate()))
 		ctx.backwardPath.MoveTo(p0.Translate(norm))
 		ctx.startTan = tan0
 		ctx.startNorm = norm
@@ -261,7 +269,7 @@ func (ctx *strokeCtx) doJoin(style Stroke, tan0 Vec2) {
 		if dot <= 0.0 || math.Abs(cross) >= hypot*ctx.joinThresh {
 			switch style.Join {
 			case BevelJoin:
-				ctx.forwardPath.LineTo(p0.Translate(norm.Negate()))
+				ctx.LineTo(p0.Translate(norm.Negate()))
 				ctx.backwardPath.LineTo(p0.Translate(norm))
 			case MiterJoin:
 				if 2.0*hypot < (hypot+dot)*style.MiterLimit*style.MiterLimit {
@@ -273,7 +281,7 @@ func (ctx *strokeCtx) doJoin(style Stroke, tan0 Vec2) {
 						fpThis := p0.Translate(norm.Negate())
 						h := ab.Cross(fpThis.Sub(fpLast)) / cross
 						miterPt := fpThis.Translate(cd.Mul(h).Negate())
-						ctx.forwardPath.LineTo(miterPt)
+						ctx.LineTo(miterPt)
 					} else if cross < 0.0 {
 						fpLast := p0.Translate(lastNorm)
 						fpThis := p0.Translate(norm)
@@ -282,15 +290,15 @@ func (ctx *strokeCtx) doJoin(style Stroke, tan0 Vec2) {
 						ctx.backwardPath.LineTo(miterPt)
 					}
 				}
-				ctx.forwardPath.LineTo(p0.Translate(norm.Negate()))
+				ctx.LineTo(p0.Translate(norm.Negate()))
 				ctx.backwardPath.LineTo(p0.Translate(norm))
 			case RoundJoin:
 				angle := math.Atan2(cross, dot)
 				if angle > 0.0 {
 					ctx.backwardPath.LineTo(p0.Translate(norm))
-					roundJoin(&ctx.forwardPath, tolerance, p0, norm, angle)
+					roundJoin(ctx, tolerance, p0, norm, angle)
 				} else {
-					ctx.forwardPath.LineTo(p0.Translate(norm.Negate()))
+					ctx.LineTo(p0.Translate(norm.Negate()))
 					roundJoinRev(&ctx.backwardPath, tolerance, p0, norm.Negate(), -angle)
 				}
 			}
@@ -301,7 +309,7 @@ func (ctx *strokeCtx) doJoin(style Stroke, tan0 Vec2) {
 func (ctx *strokeCtx) doLine(style Stroke, tangent Vec2, p1 Point) {
 	scale := 0.5 * style.Width / tangent.Hypot()
 	norm := Vec(-tangent.Y, tangent.X).Mul(scale)
-	ctx.forwardPath.LineTo(p1.Translate(norm.Negate()))
+	ctx.LineTo(p1.Translate(norm.Negate()))
 	ctx.backwardPath.LineTo(p1.Translate(norm))
 	ctx.lastPt = p1
 }
@@ -358,7 +366,12 @@ func (ctx *strokeCtx) doCubic(style Stroke, c CubicBez, tolerance float64, opts 
 	{
 		co := NewCubicOffset(c, -0.5*style.Width, dimension)
 		forward := fitWithOpts(&co, tolerance, opts)
-		ctx.forwardPath = slices.AppendSeq(ctx.forwardPath, dropFirst(forward))
+		for el := range dropFirst(forward) {
+			if ctx.dead {
+				break
+			}
+			ctx.doYield(el)
+		}
 	}
 	{
 		co := NewCubicOffset(c, 0.5*style.Width, dimension)
@@ -410,11 +423,31 @@ func (ctx *strokeCtx) doLinear(
 	ctx.doJoin(style, tan1)
 }
 
-func roundCap(out *BezPath, tolerance float64, center Point, norm Vec2) {
+func (ctx *strokeCtx) CubicTo(p1, p2, p3 Point) {
+	ctx.doYield(CubicTo(p1, p2, p3))
+}
+
+func (ctx *strokeCtx) LineTo(p1 Point) {
+	ctx.doYield(LineTo(p1))
+}
+
+func (ctx *strokeCtx) ClosePath() {
+	ctx.doYield(ClosePath())
+}
+
+func (ctx *strokeCtx) QuadTo(p0, p1 Point) {
+	ctx.doYield(QuadTo(p0, p1))
+}
+
+func (ctx *strokeCtx) MoveTo(pt Point) {
+	ctx.doYield(MoveTo(pt))
+}
+
+func roundCap(out *strokeCtx, tolerance float64, center Point, norm Vec2) {
 	roundJoin(out, tolerance, center, norm, math.Pi)
 }
 
-func roundJoin(out *BezPath, tolerance float64, center Point, norm Vec2, angle float64) {
+func roundJoin(out *strokeCtx, tolerance float64, center Point, norm Vec2, angle float64) {
 	a := Affine{norm.X, norm.Y, -norm.Y, norm.X, center.X, center.Y}
 	arc := Arc{Point{}, Vec(1.0, 1.0), math.Pi - angle, angle, 0.0}
 	for el := range dropFirst(arc.PathElements(tolerance)) {
@@ -438,7 +471,7 @@ func roundJoinRev(out *BezPath, tolerance float64, center Point, norm Vec2, angl
 	}
 }
 
-func squareCap(out *BezPath, close bool, center Point, norm Vec2) {
+func squareCap(out *strokeCtx, close bool, center Point, norm Vec2) {
 	a := Affine{norm.X, norm.Y, -norm.Y, norm.X, center.X, center.Y}
 	out.LineTo(Pt(1.0, 1.0).Transform(a))
 	out.LineTo(Pt(-1.0, 1.0).Transform(a))
@@ -449,7 +482,7 @@ func squareCap(out *BezPath, close bool, center Point, norm Vec2) {
 	}
 }
 
-func extendReversed(out *BezPath, elements []PathElement) {
+func extendReversed(out *strokeCtx, elements []PathElement) {
 	for i := len(elements) - 1; i >= 1; i-- {
 		end, ok := elements[i-1].EndPoint()
 		if !ok {

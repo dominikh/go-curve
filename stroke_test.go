@@ -48,7 +48,7 @@ func TestBrokenStrokes(t *testing.T) {
 	strokeStyle := DefaultStroke.WithWidth(30).WithCaps(ButtCap).WithJoin(MiterJoin)
 	for _, cubic := range brokenCubics {
 		path := CubicBez{cubic[0], cubic[1], cubic[2], cubic[3]}.PathElements(0.1)
-		stroked := StrokePath(path, strokeStyle, StrokeOpts{}, 0.001)
+		stroked := BezPath(slices.Collect(StrokePath(path, strokeStyle, StrokeOpts{}, 0.001)))
 		if stroked.IsInf() {
 			t.Errorf("got infinite stroke for %v", cubic)
 		}
@@ -64,7 +64,7 @@ func TestPathologicalStroke(t *testing.T) {
 	}
 	path := curve.PathElements(0.1)
 	strokeStyle := DefaultStroke.WithWidth(1.0)
-	stroked := StrokePath(path, strokeStyle, StrokeOpts{}, 0.001)
+	stroked := BezPath(slices.Collect(StrokePath(path, strokeStyle, StrokeOpts{}, 0.001)))
 	if stroked.IsInf() {
 		t.Error("got infinite stroke")
 	}
