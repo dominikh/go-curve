@@ -4,6 +4,7 @@ import (
 	"iter"
 	"math"
 	"slices"
+	"sync"
 )
 
 // Join defines the connection between two segments of a stroke.
@@ -69,6 +70,12 @@ var DefaultStroke = Stroke{
 	MiterLimit: 4.0,
 	StartCap:   RoundCap,
 	EndCap:     RoundCap,
+}
+
+var backwardPathPool = &sync.Pool{
+	New: func() any {
+		return BezPath{}
+	},
 }
 
 func (s Stroke) WithWidth(width float64) Stroke      { s.Width = width; return s }
@@ -137,8 +144,9 @@ func strokeUndashed(
 ) iter.Seq[PathElement] {
 	return func(yield func(v PathElement) bool) {
 		ctx := strokeCtx{
-			yield:      yield,
-			joinThresh: 2.0 * tolerance / style.Width,
+			yield:        yield,
+			joinThresh:   2.0 * tolerance / style.Width,
+			backwardPath: backwardPathPool.Get().(BezPath),
 		}
 		for el := range path {
 			p0 := ctx.lastPt
@@ -185,6 +193,8 @@ func strokeUndashed(
 			}
 		}
 		ctx.finish(style)
+
+		backwardPathPool.Put(ctx.backwardPath[:0])
 	}
 }
 
