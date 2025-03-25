@@ -400,7 +400,7 @@ func fitToBezPathRec(
 					return false, true
 				}
 			}
-			return yield(CubicTo(c.P1, c.P2, c.P3)), true
+			return yield(CubicTo(c.P1, c.P2, c.P3)), false
 		}
 	}
 	var t float64

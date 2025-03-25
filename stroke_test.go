@@ -69,6 +69,7 @@ func TestPathologicalStroke(t *testing.T) {
 		t.Error("got infinite stroke")
 	}
 }
+
 func TestDashSequence(t *testing.T) {
 	shape := Line{Pt(0.0, 0.0), Pt(21.0, 0.0)}
 	dashes := []float64{1.0, 5.0, 2.0, 5.0}
@@ -96,4 +97,14 @@ func TestDashSequenceOffset(t *testing.T) {
 	it := Segments(Dash(shape.PathElements(0.0), 3.0, dashes))
 	got := slices.Collect(iter.Seq[PathSegment](it))
 	diff(t, want, got)
+}
+
+func TestStrokeWithMove(t *testing.T) {
+	var p BezPath
+	p.MoveTo(Pt(0, 0))
+	p.LineTo(Pt(110., 506.))
+	p.CubicTo(Pt(135.887, 506.953), Pt(169.789, 478.352), Pt(149.129, 502.719))
+
+	for range StrokePath(p.Elements(), DefaultStroke, StrokeOpts{}, 0.1) {
+	}
 }
